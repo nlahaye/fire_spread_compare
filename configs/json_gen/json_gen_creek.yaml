@@ -1,0 +1,14 @@
+
+config_dir: "/home/nlahaye/fire_spread_compare/configs/fperim/"
+
+time: "2020-09-05T00:00:00"
+FRAPfnm: "CREEK"
+fname: "/home/nlahaye/Fire_Fronts/feds_western_us_2020_af_postprocessed.parquet"
+
+fstart: 0
+mergeid: 64500
+
+
+
+
+

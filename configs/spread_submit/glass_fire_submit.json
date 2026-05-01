@@ -2,16 +2,15 @@
   "arguments" : {
     "pyrc_fire_name" : "creek_run_2_nlahaye",
     "pyrc_simulation_span" : {
-      "pyrc_simspan_center_lon" : -119.29349471905903,
-      "pyrc_simspan_center_lat" : 37.18763739864442,
+      "pyrc_simspan_center_lon" : -122.491574364723,
+      "pyrc_simspan_center_lat" : 38.54442420005629,
 
       "pyrc_simspan_buffer_south_km" : 40,
       "pyrc_simspan_buffer_north_km" : 40,
       "pyrc_simspan_buffer_west_km" : 40,
       "pyrc_simspan_buffer_east_km" : 40,
 
-
-      "pyrc_simspan_start_epoch_s" : 1599264000,
+      "pyrc_simspan_start_epoch_s" : 1601208000,
       "pyrc_simspan_num_hours" : 14
     },
     "pyrc_inputs" : {
@@ -19,15 +18,16 @@
       "pyrc_wx_type" : "historical",
       "pyrc_fuel_version" : "2.2.0"
     },
+
     "pyrc_ignition" : {
-      "interior_points_file_path" : "s3://owo/sig3/uploads/6e8bcfd3-63cc-44a4-84bc-0d3420f974ab_nick-la-haye_new_creek_int_points.json",
-      "firelines_file_path" : "s3://owo/sig3/uploads/be6734a6-c5b8-4c05-973a-3b67ade66aac_nick-la-haye_new_creek_fline.json",
+      "interior_points_file_path" : "s3://owo/sig3/uploads/20c366bd-db27-42f8-891b-0851ebe66e1c_nick-la-haye_69497.0_int_pts.json",
+      "firelines_file_path" : "s3://owo/sig3/uploads/721cde1a-37a6-45ab-bd4c-eebe0b94836e_nick-la-haye_69497.0_fline.json",
 
       "perimeter_time_attr" : "duration",
       "fire_id_attr" : "FireID",
-      "pyrc_ignition_epoch_s" : 1599264000,
-      "pyrc_ignition_lon": -119.2796934396182,
-      "pyrc_ignition_lat": 37.32052851971933
+      "pyrc_ignition_epoch_s" : 1601208000, 
+      "pyrc_ignition_lon": -122.491574364723,
+      "pyrc_ignition_lat": 38.54442420005629
 
     },
     "pyrc_sim_params" : {
