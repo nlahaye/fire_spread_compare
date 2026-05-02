@@ -32,7 +32,7 @@ def rasterize_geom(geom, transform, width, height):
 
 def compute_miou(modeled, observed):
     results = {}
-    for cls, name in [(1,"fire"), (0,"background")]:
+    for cls, name in [(1,"fire")]:
         pred = (modeled == cls)
         label = (observed == cls)
         inter = np.logical_and(pred, label).sum()
@@ -80,7 +80,6 @@ def write_difference_tif(modeled, observed, transform, crs_wkt, output_path, met
             BAND3_DESCRIPTION="Difference: 0=Agree, 1=FP, -1=FN",
             MIOU=f"{metrics['mIoU']:.6f}",
             IOU_FIRE=f"{metrics['fire']['iou']:.6f}",
-            IOU_BACKGROUND=f"{metrics['background']['iou']:.6f}",
         )
         dst.set_band_description(1, "Reference (GeoParquet)")
         dst.set_band_description(2, "Prediction (GeoJSON)")
@@ -192,7 +191,7 @@ def main(yaml_conf):
 
     output_path = os.path.join(yaml_conf["output_dir"], yaml_conf["fire_name"] + "_init.tif")
 
-    with rasterio.open(output_path, "w", **profile) as dst:
+    with rasterio.open(output_path, "w", **profile_init) as dst:
         dst.write(mask_init.astype(np.int16), 1)
 
 
@@ -219,21 +218,28 @@ def main(yaml_conf):
                 dst_crs= x["hull"].crs,
                 resampling=Resampling.nearest)
 
-        with rasterio.open(os.path.join(yaml_conf["output_dir"], output_field + "_" + str(percentiles[i]) + "_" + yaml_conf["compare_tint"] + ".tif"), "w", **profile) as dst:
+        with rasterio.open(os.path.join(yaml_conf["output_dir"], yaml_conf["fire_name"] + "_" + output_field + "_" + str(percentiles[i]) + "_" + yaml_conf["compare_tint"] + ".tif"), "w", **profile) as dst:
             dst.write(np.squeeze(resampled.astype(np.int16)), 1)
 
         resampled = resampled.astype(np.int16)
 
-        metrics = compute_miou(resampled, mask_observed)
+
+        modeled_bin = copy.deepcopy(resampled)
+        modeled_bin[np.where(resampled > 0)] = 1
+
+        metrics = compute_miou(modeled_bin, mask_observed)
 
         hist_vals.append(metrics["mIoU"])
 
-        uid = output_field + "_" + str(percentiles[i]) + "_" + yaml_conf["compare_tint"]
+        print(metrics)
+
+        uid = yaml_conf["fire_name"] + "_" + output_field + "_" + str(percentiles[i]) + "_" + yaml_conf["compare_tint"]
         target_crs =src.crs
         write_difference_tif(resampled, mask_observed, transform, x["hull"].crs.to_wkt(), os.path.join(yaml_conf["output_dir"],"Diff_" + uid + ".tif"), metrics)
 
 
     percentiles = [0] + percentiles
+    print(hist_vals)
     plt.stairs(hist_vals, percentiles, fill=True)
     plt.savefig(os.path.join(yaml_conf["output_dir"], output_field + "_hist.png"), dpi=400)
 
