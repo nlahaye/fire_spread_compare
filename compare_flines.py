@@ -241,7 +241,7 @@ def main(yaml_conf):
     percentiles = [0] + percentiles
     print(hist_vals)
     plt.stairs(hist_vals, percentiles, fill=True)
-    plt.savefig(os.path.join(yaml_conf["output_dir"], output_field + "_hist.png"), dpi=400)
+    plt.savefig(os.path.join(yaml_conf["output_dir"], yaml_conf["fire_name"] + "_" + output_field + "_hist.png"), dpi=400)
 
 
 
