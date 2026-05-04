@@ -1,0 +1,23 @@
+
+
+config_dir: "/Users/nlahaye/fire_spread_compare/configs/fperim/"
+
+time: "2025-01-09T12:00:00"
+
+fire_id: "LA_202501_2"
+FRAPfnm: "LA_202501_2"
+
+fname: "/Users/nlahaye/Fire_Line/fire_nrt_J2V-C2_745339.shp"
+
+date: "2025-01-09"
+
+min_time: 0
+max_time: 1500
+
+fstart: 0
+mergeid: 69497
+
+
+
+
+

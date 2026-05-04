@@ -1,0 +1,23 @@
+
+
+config_dir: "/Users/nlahaye/fire_spread_compare/configs/fperim/"
+
+time: "2023-06-27T00:00:00"
+
+fire_id: "Fresno_202306"
+FRAPfnm: "Fresno_202306"
+
+fname: "/Users/nlahaye/Fire_Line/fire_archive_J1V-C2_745863.shp"
+
+date: "2023-06-26"
+
+min_time: 1600
+max_time: 2359
+
+fstart: 0
+mergeid: 69497
+
+
+
+
+

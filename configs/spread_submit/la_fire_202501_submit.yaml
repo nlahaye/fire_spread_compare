@@ -1,0 +1,38 @@
+{"network" : "eis",
+  "arguments" : {
+    "pyrc_fire_name" : "creek_run_2_nlahaye",
+    "pyrc_simulation_span" : {
+      "pyrc_simspan_center_lon" : -118.47744,
+      "pyrc_simspan_center_lat" : 34.09177,
+
+      "pyrc_simspan_buffer_south_km" : 40,
+      "pyrc_simspan_buffer_north_km" : 40,
+      "pyrc_simspan_buffer_west_km" : 40,
+      "pyrc_simspan_buffer_east_km" : 40,
+
+
+      "pyrc_simspan_start_epoch_s" : 1736326800,
+      "pyrc_simspan_num_hours" : 14
+    },
+    "pyrc_inputs" : {
+      "pyrc_fuel_source" : "landfire",
+      "pyrc_wx_type" : "historical",
+      "pyrc_fuel_version" : "2.2.0"
+    },
+
+    "pyrc_ignition" : {
+      "interior_points_file_path" : "s3://owo/sig3/uploads/aa535827-5395-47d6-8ddf-555b7bd434cf_nick-la-haye_configs/fperim/LA_202501_int_pts.json",
+      "firelines_file_path" : "s3://owo/sig3/uploads/2b147320-730c-426e-a864-767b3d1f7852_nick-la-haye_configs/fperim/LA_202501_fline.json",
+      "perimeter_time_attr" : "duration",
+      "fire_id_attr" : "FireID",
+      "pyrc_ignition_epoch_s" : 1736326800,
+      "pyrc_ignition_lon": -118.47744,
+      "pyrc_ignition_lat": 34.09177
+
+    },
+    "pyrc_sim_params" : {
+      "pyrc_sim_runtime_hr" : 12,
+      "pyrc_sim_num_ensemble_members" : 10
+    }
+  }
+}
