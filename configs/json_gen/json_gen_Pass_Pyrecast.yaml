@@ -1,0 +1,15 @@
+
+
+config_dir: "/home/nlahaye/fire_spread_compare/configs/fperim/"
+
+time: "2025-09-17T19:00:00"
+FRAPfnm: "PASS" #"CREEK"
+fname: "/home/nlahaye/Fire_Fronts/CA_PASS_Pyrecast/burning.tif"
+
+fstart: 0
+mergeid: 69497
+
+fire_id: "Pass"
+
+
+
