@@ -6,6 +6,10 @@ import geopandas as gpd
 import argparse
 import copy
 import json 
+import os
+
+import numpy as np
+import datetime
 
 from utils import read_yaml
 
@@ -103,7 +107,6 @@ def sample_linestring_points(line: LineString, percent: float, seed: int | None 
     else:
         coords = list(line.coords)
 
-    print(coords, "HERE")
     n = len(coords)
 
     if n == 0 or percent == 0:
@@ -121,22 +124,49 @@ def sample_linestring_points(line: LineString, percent: float, seed: int | None 
 
 def main(yaml_conf):
   
+    is_point = False
     if "parquet" in yaml_conf["fname"]:
         x = gpd.read_parquet(yaml_conf["fname"])
         x = x[x['mergeid'] == yaml_conf["mergeid"]] #64500]
 
-    #TODO - handle FIRMS-based CSVs
+        #TODO - handle FIRMS-based CSVs
+ 
+        x['fline'] = x['fline'].set_crs(epsg=9311, inplace=True)
+        x['fline'] = x['fline'].to_crs("EPSG:4326")
+        pt = x.sort_values(by='t').iloc[yaml_conf["fstart"]]
 
-    x['fline'] = x['fline'].set_crs(epsg=9311, inplace=True)
-    x['fline'] = x['fline'].to_crs("EPSG:4326")
-    pt = x.sort_values(by='t').iloc[yaml_conf["fstart"]]
+        tmp =  gpd.GeoSeries(pt['fline'])
+        tmp = tmp.set_crs("EPSG:4326")
 
-    tmp =  gpd.GeoSeries(pt['fline'])
-    tmp = tmp.set_crs("EPSG:4326")
+        fline = pt['fline']
+        time = pt['t_st'].strftime('%Y-%m-%dT%H:%M:%S')
+        fid = pt['mergeid']
 
-    fline = pt['fline']
-    time = pt['t_st'].strftime('%Y-%m-%dT%H:%M:%S')
-    fid = pt['mergeid']
+    elif "fire_nrt" or "fire_archive" in yaml_conf["fname"]:
+        is_point = True
+        x = gpd.read_file(yaml_conf["fname"])
+        dt = datetime.datetime.strptime(yaml_conf["date"], "%Y-%m-%d")
+        min_time = yaml_conf["min_time"]
+        max_time = yaml_conf["max_time"]
+        x['ACQ_TIME'] = x['ACQ_TIME'].astype(np.int64)
+        x = x[(x['ACQ_DATE'] == dt) & (x['ACQ_TIME'] >= min_time) & (x['ACQ_TIME'] <= max_time)]
+
+
+        tmp = gpd.GeoSeries(MultiPoint(x.geometry.values))
+
+        time = dt.strftime('%Y-%m-%dT%H:%M:%S')
+        fid = yaml_conf["fire_id"]
+
+    else:
+        x = gpd.read_file(yaml_conf["fname"])
+        tmp = gpd.GeoSeries(x.iloc[0]["geometry"])
+        tmp = tmp.set_crs("EPSG:4326")
+
+        fline = pt['fline']
+        time = pt['t_st'].strftime('%Y-%m-%dT%H:%M:%S')
+        fid = pt['mergeid']
+ 
+
     duration = 0.0
  
     pt_dict = copy.deepcopy(init_int_pt_dict)
@@ -153,7 +183,14 @@ def main(yaml_conf):
 
     point = tmp.geometry.centroid #iloc[-1].coords[int(tmp.geometry.iloc[-1].length / 2.0)]
 
-    points = sample_linestring_points(tmp.geometry.iloc[-1], 100) 
+ 
+    if not is_point:
+        points = sample_linestring_points(tmp.geometry.iloc[-1], 100) 
+    else:
+        points = tmp.geometry.iloc[-1]
+
+    print(point)
+
     pt_dict["features"][-1]["geometry"] = points.__geo_interface__
     fline_dict["features"][-1]["geometry"] = tmp.__geo_interface__["features"][-1]["geometry"]
 
