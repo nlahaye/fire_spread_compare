@@ -1,6 +1,9 @@
 
-from shapely.geometry import MultiLineString, LineString, MultiPoint, Point
+from shapely.geometry import MultiLineString, LineString, MultiPoint, Point, MultiPolygon, Polygon
 from shapely import to_geojson
+import shapely
+import rioxarray
+import rasterio
 import random
 import geopandas as gpd
 import argparse
@@ -100,10 +103,12 @@ def sample_linestring_points(line: LineString, percent: float, seed: int | None 
         raise ValueError("percent must be between 0 and 100")
 
     coords = []
-    if isinstance(line, MultiLineString):
+    if isinstance(line, MultiLineString) or isinstance(line, MultiPoint):
         coords_tmp = [list(sline.coords) for sline in line.geoms]
         for i in range(len(coords_tmp)):
             coords.extend(coords_tmp[i])
+    elif isinstance(line, MultiPolygon) or isinstance(line, Polygon):
+        coords = shapely.get_coordinates(line)
     else:
         coords = list(line.coords)
 
@@ -141,8 +146,35 @@ def main(yaml_conf):
         fline = pt['fline']
         time = pt['t_st'].strftime('%Y-%m-%dT%H:%M:%S')
         fid = pt['mergeid']
+    elif "tif" in yaml_conf["fname"]:
+        raster = rioxarray.open_rasterio(yaml_conf["fname"])
+        band = raster.sel(band=1)
+        mask = band > 0
 
-    elif "fire_nrt" or "fire_archive" in yaml_conf["fname"]:
+        results = (
+            {'properties': {'raster_val': v}, 'geometry': s}
+            for i, (s, v) in enumerate(
+                rasterio.features.shapes(
+                band.values,
+                mask=mask.values, # Only vectorize where mask is True
+                transform=band.rio.transform()
+               )
+             )
+        )
+
+        geoms = list(results)
+
+        x = gpd.GeoDataFrame.from_features(geoms, crs=band.rio.crs)
+        x["geometry"]  = x["geometry"].to_crs("EPSG:4326")
+        tmp = gpd.GeoSeries(x.iloc[0]["geometry"])
+        tmp = tmp.set_crs("EPSG:4326")
+        
+        dt = datetime.datetime.strptime(yaml_conf["time"], "%Y-%m-%dT%H:%M:%S")
+        time = dt.strftime('%Y-%m-%dT%H:%M:%S')
+        fid = yaml_conf["fire_id"]
+
+
+    elif "fire_nrt" in yaml_conf["fname"] or "fire_archive" in yaml_conf["fname"]:
         is_point = True
         x = gpd.read_file(yaml_conf["fname"])
         dt = datetime.datetime.strptime(yaml_conf["date"], "%Y-%m-%d")
@@ -156,15 +188,15 @@ def main(yaml_conf):
 
         time = dt.strftime('%Y-%m-%dT%H:%M:%S')
         fid = yaml_conf["fire_id"]
-
     else:
         x = gpd.read_file(yaml_conf["fname"])
+        x["geometry"]  = x["geometry"].to_crs("EPSG:4326")
         tmp = gpd.GeoSeries(x.iloc[0]["geometry"])
         tmp = tmp.set_crs("EPSG:4326")
 
-        fline = pt['fline']
-        time = pt['t_st'].strftime('%Y-%m-%dT%H:%M:%S')
-        fid = pt['mergeid']
+        dt = datetime.datetime.strptime(yaml_conf["time"], "%Y-%m-%dT%H:%M:%S")
+        time = dt.strftime('%Y-%m-%dT%H:%M:%S')
+        fid = yaml_conf["fire_id"]
  
 
     duration = 0.0
