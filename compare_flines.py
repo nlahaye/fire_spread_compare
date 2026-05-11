@@ -18,6 +18,9 @@ import os
 
 from utils import read_yaml
 
+from scipy.spatial.distance import directed_hausdorff
+from skimage.metrics import structural_similarity
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -30,8 +33,11 @@ def rasterize_geom(geom, transform, width, height):
             all_touched=False)
     return arr.astype(np.int16)
 
-def compute_miou(modeled, observed):
-    results = {}
+def compute_miou(modeled, observed, results = None):
+
+    if results is None:
+        results = {}
+
     for cls, name in [(1,"fire")]:
         pred = (modeled == cls)
         label = (observed == cls)
@@ -43,6 +49,102 @@ def compute_miou(modeled, observed):
     valid_ious = [v["iou"] for v in results.values() if not np.isnan(v["iou"])]
     results["mIoU"] = float(np.mean(valid_ious)) if valid_ious else float("nan")
     return results
+
+
+def compute_hausdorff(modeled, observed, results = None):
+ 
+    if results is None:
+        results = {}
+
+    rows_m, cols_m = np.where(modeled > 0)
+    pts_m = np.column_stack([rows_m, cols_m])
+
+    rows_o, cols_o = np.where(observed > 0)
+    pts_o = np.column_stack([rows_o, cols_o])
+ 
+    d_mo, i_m, j_o = directed_hausdorff(pts_m, pts_o)
+    d_om, i_o, j_m = directed_hausdorff(pts_o, pts_m)
+     
+    d = max(d_ab, d_ba)
+
+    results["hausdorff"] = d
+
+    return results
+    
+
+def compute_ssim(modeled, observed, results = None):
+
+    if results is None:
+        results = {}
+ 
+    win_size = min(modeled.shape[0], modeled.shape[1])
+    if win_size % 2 == 0:
+        win_size = win_size -1
+    ssim = structural_similarity(modeled.astype(np.float32), observed.astype(np.float32), data_range=1, gaussian_weights=False, win_size=win_size)
+
+    results["SSIM"] = ssim
+
+    return results
+
+def convex_hull_metrics(modeled, observed, results = None):
+
+    if results is None:
+        results = {}
+
+    ch_modeled = create_convex_hull(modeled.copy())
+    ch_observed = create_convex_hull(observed.copy())
+
+    results_tmp = compute_miou(ch_modeled, ch_observed)
+    results["ch_IoU"] = results_tmp["mIoU"]
+
+    results_tmp = compute_ssim(ch_modeled, ch_observed)
+    results["ch_SSIM"] = results_tmp["SSIM"]
+
+    return results, ch_modeled, ch_observed
+
+
+def create_convex_hull(fline_raster):
+
+    fline_raster[np.where(imgData < 0)] = 0
+    fline_raster[np.where(imgData > 0)] = 1
+    fline_raster = imgData.astype(np.uint8) * 255
+    fline_raster2 = imgData.copy()
+    fline_raster3 = imgData.copy()
+
+    # Mask used to flood filling.
+    # Notice the size needs to be 2 pixels than the image.
+    h, w = fline_raster.shape[:2]
+    mask = np.zeros((h+2, w+2), np.uint8)
+
+    # Floodfill from point (0, 0)
+    cv2.floodFill(fline_raster3, mask, (0,0), 255)
+    cv2.floodFill(fline_raster3, mask, (w-1,0), 255)
+    cv2.floodFill(fline_raster3, mask, (w-1, h-1), 255)
+    cv2.floodFill(fline_raster3, mask, (0, h-1), 255)
+    # Invert floodfilled image
+    im_floodfill_inv = cv2.bitwise_not(fline_raster3)
+ 
+
+    # Combine the two images to get the foreground.
+    im_out = fline_raster | im_floodfill_inv
+    im_out = im_out.astype(np.uint8) * 255
+
+    # Find Canny edges
+    edged = cv2.Canny(im_out, 30, 200)
+
+    # Finding Contours
+    # Use a copy of the image e.g. edged.copy()
+    # since findContours alters the image
+    contours, hierarchy = cv2.findContours(im_out, \
+    cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    print("Number of Contours found = " + str(len(contours)))
+
+    # Draw all contours
+    ret = np.zeros(edged.shape)
+    cv2.drawContours(ret, contours, -1, 1, thickness=cv2.FILLED)
+
+    return ret
+
 
 def write_difference_tif(modeled, observed, transform, crs_wkt, output_path, metrics):
 
@@ -197,7 +299,7 @@ def main(yaml_conf):
 
  
     resampled = None
-    hist_vals = []
+    hist_vals = { "IoU" : [], "ch_SSIM" : [], "hausdorff" : [], "ch_IoU" : [] }
 
     for i in range(len(percentiles)):
         fdir_full = os.path.join(fdir, output_field + "_" + str(percentiles[i]) + "_" + yaml_conf["compare_tint"] + ".tif")
@@ -227,9 +329,14 @@ def main(yaml_conf):
         modeled_bin = copy.deepcopy(resampled)
         modeled_bin[np.where(resampled > 0)] = 1
 
-        metrics = compute_miou(modeled_bin, mask_observed)
-
-        hist_vals.append(metrics["mIoU"])
+        metrics = compute_miou(modeled_bin, mask_observed, metrics)
+        metrics = compute_hausdorff(modeled_bin, mask_observed, metrics)
+        metrics, ch_modeled, ch_observed = convex_hull_metrics(modeled, observed, metrics)
+ 
+        hist_vals["IoU"].append(metrics["mIoU"])
+        hist_vals["hausdorff"].append(metrics["hausdorff"])
+        hist_vals["ch_SSIM"].append(metrics["ch_SSIM"])
+        hist_vals["ch_IoU"].append(metrics["ch_IoU"])
 
         print(metrics)
 
@@ -237,13 +344,27 @@ def main(yaml_conf):
         target_crs =src.crs
         write_difference_tif(resampled, mask_observed, transform, x["hull"].crs.to_wkt(), os.path.join(yaml_conf["output_dir"],"Diff_" + uid + ".tif"), metrics)
 
+        write_difference_tif(ch_modeled, ch_observed, transform, x["hull"].crs.to_wkt(), os.path.join(yaml_conf["output_dir"],"Diff_CH_" + uid + ".tif"), metrics)
+
 
     percentiles = [0] + percentiles
-    print(hist_vals)
-    plt.stairs(hist_vals, percentiles, fill=True)
-    plt.savefig(os.path.join(yaml_conf["output_dir"], yaml_conf["fire_name"] + "_" + output_field + "_hist.png"), dpi=400)
 
+    plt.stairs(hist_vals["IoU"], percentiles, fill=True)
+    plt.savefig(os.path.join(yaml_conf["output_dir"], yaml_conf["fire_name"] + "_" + output_field + "_IoU_hist.png"), dpi=400)
 
+    plt.clf()
+    plt.stairs(hist_vals["hausdorff"], percentiles, fill=True)
+    plt.savefig(os.path.join(yaml_conf["output_dir"], yaml_conf["fire_name"] + "_" + output_field + "_hausdorff_hist.png"), dpi=400)
+
+    plt.clf()
+    plt.stairs(hist_vals["ch_SSIM"], percentiles, fill=True)
+    plt.savefig(os.path.join(yaml_conf["output_dir"], yaml_conf["fire_name"] + "_" + output_field + "_chSSIM_hist.png"), dpi=400)
+
+    plt.clf()
+    plt.stairs(hist_vals["ch_IoU"], percentiles, fill=True)
+    plt.savefig(os.path.join(yaml_conf["output_dir"], yaml_conf["fire_name"] + "_" + output_field + "_chIoU_hist.png"), dpi=400)
+
+    
 
 if __name__ == "__main__":
 
