@@ -8,6 +8,7 @@ from rasterio.enums import Resampling
 from rasterio.features import rasterize
 from rasterio.warp import reproject, Resampling
 
+
 import numpy as np
 import random
 import geopandas as gpd
@@ -15,6 +16,8 @@ import argparse
 import copy
 import json 
 import os
+
+import cv2
 
 from utils import read_yaml
 
@@ -65,7 +68,7 @@ def compute_hausdorff(modeled, observed, results = None):
     d_mo, i_m, j_o = directed_hausdorff(pts_m, pts_o)
     d_om, i_o, j_m = directed_hausdorff(pts_o, pts_m)
      
-    d = max(d_ab, d_ba)
+    d = max(d_mo, d_om)
 
     results["hausdorff"] = d
 
@@ -86,13 +89,13 @@ def compute_ssim(modeled, observed, results = None):
 
     return results
 
-def convex_hull_metrics(modeled, observed, results = None):
+def convex_hull_metrics(modeled, observed, transform, results = None):
 
     if results is None:
         results = {}
 
-    ch_modeled = create_convex_hull(modeled.copy())
-    ch_observed = create_convex_hull(observed.copy())
+    ch_modeled = create_convex_hull_2(modeled.copy(), transform)
+    ch_observed = create_convex_hull_2(observed.copy(), transform)
 
     results_tmp = compute_miou(ch_modeled, ch_observed)
     results["ch_IoU"] = results_tmp["mIoU"]
@@ -103,13 +106,32 @@ def convex_hull_metrics(modeled, observed, results = None):
     return results, ch_modeled, ch_observed
 
 
+def create_convex_hull_2(fline_raster, transform):
+
+    rows, cols = np.where(fline_raster == 1)
+
+    xs, ys = rasterio.transform.xy(transform, rows, cols, offset="center")
+    points = np.column_stack([xs, ys])
+
+    hull = MultiPoint(points).convex_hull
+    hull_mask = rasterize(
+            [(mapping(hull), 1)],
+            out_shape=fline_raster.shape,
+            transform=transform,
+            fill=0,
+            all_touched=True,
+            dtype="int16")
+
+    return hull_mask
+
+
 def create_convex_hull(fline_raster):
 
-    fline_raster[np.where(imgData < 0)] = 0
-    fline_raster[np.where(imgData > 0)] = 1
-    fline_raster = imgData.astype(np.uint8) * 255
-    fline_raster2 = imgData.copy()
-    fline_raster3 = imgData.copy()
+    fline_raster[np.where(fline_raster < 0)] = 0
+    fline_raster[np.where(fline_raster > 0)] = 1
+    fline_raster = fline_raster.astype(np.uint8) * 255
+    fline_raster2 = fline_raster.copy()
+    fline_raster3 = fline_raster.copy()
 
     # Mask used to flood filling.
     # Notice the size needs to be 2 pixels than the image.
@@ -329,9 +351,10 @@ def main(yaml_conf):
         modeled_bin = copy.deepcopy(resampled)
         modeled_bin[np.where(resampled > 0)] = 1
 
+        metrics = None
         metrics = compute_miou(modeled_bin, mask_observed, metrics)
         metrics = compute_hausdorff(modeled_bin, mask_observed, metrics)
-        metrics, ch_modeled, ch_observed = convex_hull_metrics(modeled, observed, metrics)
+        metrics, ch_modeled, ch_observed = convex_hull_metrics(modeled_bin, mask_observed, transform, metrics)
  
         hist_vals["IoU"].append(metrics["mIoU"])
         hist_vals["hausdorff"].append(metrics["hausdorff"])
