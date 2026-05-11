@@ -127,6 +127,29 @@ def sample_linestring_points(line: LineString, percent: float, seed: int | None 
     return MultiPoint(points)
 
 
+def multipoint_to_single_multilinestring(multipoint):
+    coords = [(pt.x, pt.y) for pt in multipoint.geoms]
+
+    if len(coords) < 2:
+        return multipoint
+
+    lines = []
+    group_size = 3
+    for i in range(0, len(coords), group_size):
+        chunk = coords[i:i + group-size]
+
+        if len(chunk) < 2:
+            continue
+
+        if len(chunk) > 2:
+            chunk = chunk + [chunk[0]]
+
+        lines.append(LineString(chunk))
+
+
+    return MultiLineString([lines])
+
+
 def main(yaml_conf):
   
     is_point = False
@@ -185,6 +208,7 @@ def main(yaml_conf):
 
 
         tmp = gpd.GeoSeries(MultiPoint(x.geometry.values))
+        tmp = multipoint_to_single_multilinestring(tmp)
 
         time = dt.strftime('%Y-%m-%dT%H:%M:%S')
         fid = yaml_conf["fire_id"]
