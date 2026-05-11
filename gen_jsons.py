@@ -136,7 +136,7 @@ def multipoint_to_single_multilinestring(multipoint):
     lines = []
     group_size = 3
     for i in range(0, len(coords), group_size):
-        chunk = coords[i:i + group-size]
+        chunk = coords[i:i + group_size]
 
         if len(chunk) < 2:
             continue
@@ -147,7 +147,7 @@ def multipoint_to_single_multilinestring(multipoint):
         lines.append(LineString(chunk))
 
 
-    return MultiLineString([lines])
+    return MultiLineString(lines)
 
 
 def main(yaml_conf):
@@ -207,8 +207,10 @@ def main(yaml_conf):
         x = x[(x['ACQ_DATE'] == dt) & (x['ACQ_TIME'] >= min_time) & (x['ACQ_TIME'] <= max_time)]
 
 
-        tmp = gpd.GeoSeries(MultiPoint(x.geometry.values))
+        tmp = MultiPoint(x.geometry.values)
         tmp = multipoint_to_single_multilinestring(tmp)
+        tmp = gpd.GeoSeries(tmp)
+        tmp = tmp.set_crs("EPSG:4326")
 
         time = dt.strftime('%Y-%m-%dT%H:%M:%S')
         fid = yaml_conf["fire_id"]
