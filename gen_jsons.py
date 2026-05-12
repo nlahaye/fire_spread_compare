@@ -153,6 +153,7 @@ def multipoint_to_single_multilinestring(multipoint):
 def main(yaml_conf):
   
     is_point = False
+    tmp_pts = None
     if "parquet" in yaml_conf["fname"]:
         x = gpd.read_parquet(yaml_conf["fname"])
         x = x[x['mergeid'] == yaml_conf["mergeid"]] #64500]
@@ -207,10 +208,14 @@ def main(yaml_conf):
         x = x[(x['ACQ_DATE'] == dt) & (x['ACQ_TIME'] >= min_time) & (x['ACQ_TIME'] <= max_time)]
 
 
-        tmp = MultiPoint(x.geometry.values)
-        tmp = multipoint_to_single_multilinestring(tmp)
+        tmp_pts = MultiPoint(x.geometry.values)
+        tmp = multipoint_to_single_multilinestring(tmp_pts)
         tmp = gpd.GeoSeries(tmp)
         tmp = tmp.set_crs("EPSG:4326")
+  
+        tmp_pts = gpd.GeoSeries(tmp_pts)
+        tmp_pts = tmp_pts.set_crs("EPSG:4326")
+
 
         time = dt.strftime('%Y-%m-%dT%H:%M:%S')
         fid = yaml_conf["fire_id"]
@@ -245,7 +250,7 @@ def main(yaml_conf):
     if not is_point:
         points = sample_linestring_points(tmp.geometry.iloc[-1], 100) 
     else:
-        points = tmp.geometry.iloc[-1]
+        points = tmp_pts.geometry.iloc[-1]
 
     print(point)
 
