@@ -1,6 +1,8 @@
 from shapely.geometry import LineString, MultiPoint, Point, mapping
 from shapely import to_geojson, get_precision, set_precision
 from shapely.ops import unary_union
+from shapely.validation import make_valid
+
 import rasterio
 from rasterio.transform import from_bounds
 from rasterio.crs import CRS
@@ -166,6 +168,102 @@ def create_convex_hull(fline_raster):
     cv2.drawContours(ret, contours, -1, 1, thickness=cv2.FILLED)
 
     return ret
+
+
+
+#TODO - edit and integrate as a third option/middle ground for polygon comparisons
+
+def close_fireline_and_fill(
+    raster_path,
+    fire_value=1,
+    band=1,
+    out_path=None,
+    all_touched=True,
+    sort_points=True,
+):
+    """
+    Take a raster fire line, close it into a polygon, and fill that polygon.
+
+    Parameters
+    ----------
+    raster_path : str
+        Input raster path.
+    fire_value : int or float, default=1
+        Raster value representing the fire line.
+    band : int, default=1
+        Band to read.
+    out_path : str or None, default=None
+        Optional output GeoTIFF path for the filled polygon raster.
+    all_touched : bool, default=True
+        Passed to rasterize().
+    sort_points : bool, default=True
+        If True, sort fire-line pixels by angle around centroid before closing.
+
+    Returns
+    -------
+    dict
+        Contains polygon geometry, raster mask, bounds, area, CRS, and transform.
+    """
+    with rasterio.open(raster_path) as src:
+        arr = src.read(band)
+        transform = src.transform
+        crs = src.crs
+        profile = src.profile.copy()
+
+        rows, cols = np.where(arr == fire_value)
+
+        if len(rows) < 3:
+            raise ValueError("Need at least 3 fire-line pixels to form a polygon.")
+
+        xs, ys = rasterio.transform.xy(transform, rows, cols, offset="center")
+        coords = np.column_stack([xs, ys])
+
+        if sort_points:
+            centroid = coords.mean(axis=0)
+            angles = np.arctan2(coords[:, 1] - centroid[1], coords[:, 0] - centroid[0])
+            coords = coords[np.argsort(angles)]
+
+        # Close the line if needed
+        if not np.allclose(coords[0], coords[-1]):
+            coords = np.vstack([coords, coords[0]])
+
+        line = LineString(coords)
+
+        if not line.is_closed:
+            raise ValueError("Failed to create a closed fire line.")
+
+        polygon = Polygon(line)
+
+        if not polygon.is_valid:
+            polygon = make_valid(polygon)
+
+        if polygon.is_empty:
+            raise ValueError("Polygon is empty after closing/validation.")
+
+        filled = rasterize(
+            [(polygon, 1)],
+            out_shape=arr.shape,
+            transform=transform,
+            fill=0,
+            all_touched=all_touched,
+            dtype="uint8",
+        )
+
+        if out_path is not None:
+            profile.update(dtype="uint8", count=1, nodata=0, compress="lzw")
+            with rasterio.open(out_path, "w", **profile) as dst:
+                dst.write(filled, 1)
+
+        return {
+            "polygon": polygon,
+            "filled_raster": filled if out_path is None else None,
+            "bounds": polygon.bounds,
+            "area": polygon.area,
+            "crs": crs,
+            "transform": transform,
+            "out_path": out_path,
+        }
+
 
 
 def write_difference_tif(modeled, observed, transform, crs_wkt, output_path, metrics):
