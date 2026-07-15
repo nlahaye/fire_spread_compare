@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import os
+
 import geopandas as gpd
 import matplotlib
 matplotlib.use("Agg")
@@ -20,6 +22,7 @@ from fire_compare_utils import (
     dissolve_to_polygon,
     rasterize_geom,
     write_single_band_raster,
+    cawfe_csv_to_raster,
 )
 
 
@@ -101,8 +104,8 @@ def main(yaml_conf: dict):
 
         if is_cawfe:
             fdir_full = yaml_conf["cawfe_csv"]
-            model_path = os.path.splitext(fdir_full)[0] + ".tif"
-            mask_modeled = cawfe_csv_to_raster(fdir_full, model_path, yaml_conf)
+            #model_path = os.path.splitext(fdir_full)[0] + ".tif"
+            mask_modeled, model_path = cawfe_csv_to_raster(fdir_full, yaml_conf)
         else:
             model_path = model_dir / f"{output_field}_{pct}_{yaml_conf['compare_tint']}.tif"
 
@@ -151,22 +154,24 @@ def main(yaml_conf: dict):
         hist_vals["ch_IoU"].append(perim_stats["perim_ch_IoU"])
         print(perim_stats)
 
-    stair_bins = [0] + list(percentiles)
+ 
+    if len(list(percentiles)) > 1:
+        stair_bins = [0] + list(percentiles)
 
-    plt.stairs(hist_vals["IoU"], stair_bins, fill=True)
-    plt.savefig(output_dir / f"{yaml_conf['fire_name']}_{output_field}_IoU_hist.png", dpi=400)
-    plt.clf()
+        plt.stairs(hist_vals["IoU"], stair_bins, fill=True)
+        plt.savefig(output_dir / f"{yaml_conf['fire_name']}_{output_field}_IoU_hist.png", dpi=400)
+        plt.clf()
 
-    plt.stairs(hist_vals["hausdorff"], stair_bins, fill=True)
-    plt.savefig(output_dir / f"{yaml_conf['fire_name']}_{output_field}_hausdorff_hist.png", dpi=400)
-    plt.clf()
+        plt.stairs(hist_vals["hausdorff"], stair_bins, fill=True)
+        plt.savefig(output_dir / f"{yaml_conf['fire_name']}_{output_field}_hausdorff_hist.png", dpi=400)
+        plt.clf()
 
-    plt.stairs(hist_vals["ch_SSIM"], stair_bins, fill=True)
-    plt.savefig(output_dir / f"{yaml_conf['fire_name']}_{output_field}_chSSIM_hist.png", dpi=400)
-    plt.clf()
+        plt.stairs(hist_vals["ch_SSIM"], stair_bins, fill=True)
+        plt.savefig(output_dir / f"{yaml_conf['fire_name']}_{output_field}_chSSIM_hist.png", dpi=400)
+        plt.clf()
 
-    plt.stairs(hist_vals["ch_IoU"], stair_bins, fill=True)
-    plt.savefig(output_dir / f"{yaml_conf['fire_name']}_{output_field}_chIoU_hist.png", dpi=400)
+        plt.stairs(hist_vals["ch_IoU"], stair_bins, fill=True)
+        plt.savefig(output_dir / f"{yaml_conf['fire_name']}_{output_field}_chIoU_hist.png", dpi=400)
 
 
 if __name__ == "__main__":

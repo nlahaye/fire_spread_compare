@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import rasterio
 from rasterio.enums import Resampling
 from rasterio.features import rasterize
@@ -42,16 +43,17 @@ def get_resampling(name: str) -> Resampling:
     return lut[name]
 
 
-def cawfe_csv_to_raster(csv_fname, out_fname, yaml_conf):
+def cawfe_csv_to_raster(csv_fname, yaml_conf):
     df = pd.read_csv(csv_fname)
     x = gpd.GeoDataFrame(
-            df, geometry=geopandas.points_from_xy(df.LON, df.LAT), crs="EPSG:4326"
+            df, geometry=gpd.points_from_xy(df.LON, df.LAT), crs="EPSG:4326"
     )   
 
-    x["FLUX"] = x["FLUX"].to_crs("EPSG:4326")
+    x = x.to_crs("EPSG:4326")
     resolution = yaml_conf["resolution_deg"]
 
-    geom = dissolve_to_polygon(x["FLUX"])
+
+    geom = dissolve_to_polygon(x["geometry"])
 
     transform, width, height = compute_raster_grid(geom, resolution)
     mask = rasterize_geom(geom, transform, width, height)
@@ -62,7 +64,7 @@ def cawfe_csv_to_raster(csv_fname, out_fname, yaml_conf):
             "width": mask.shape[1],
             "height" : mask.shape[0],
             "count" : 1,
-            "crs" : x["FLUX"].crs.to_wkt(),
+            "crs" : x.crs.to_wkt(),
             "transform" : transform,
             "compress" : "lzw",
             "predictor" : 2,
@@ -76,7 +78,7 @@ def cawfe_csv_to_raster(csv_fname, out_fname, yaml_conf):
     with rasterio.open(output_path, "w", **profile) as dst:
         dst.write(mask.astype(np.int16), 1)
 
-    return mask
+    return mask, output_path
 
 
 def read_raster(src_path: Path, band: int = 1) -> tuple[np.ndarray, dict]:
