@@ -51,6 +51,9 @@ def build_observed_masks(yaml_conf: dict):
     return {
         "gdf": x,
         "transform": transform,
+        "transform_init": transform_init,
+        "width_init": width_init,
+        "height_init": height_init,
         "width": width,
         "height": height,
         "crs": crs,
@@ -95,6 +98,22 @@ def main(yaml_conf: dict):
         dst.write(observed["mask_observed"].astype(np.int16), 1)
 
     init_ref_path = output_dir / f"{yaml_conf['fire_name']}_init.tif"
+
+    profile = { 
+        "driver": "GTiff",
+        "dtype": "int16",
+        "width": observed["mask_init"].shape[1],
+        "height": observed["mask_init"].shape[0],
+        "count": 1,
+        "crs": observed["crs"].to_wkt(),
+        "transform": observed["transform_init"],
+        "compress": "lzw",
+        "predictor": 2,
+        "tiled": True,
+        "blockxsize": 256,
+        "blockysize": 256,
+        "nodata": 0,
+    }  
     with rasterio.open(init_ref_path, "w", **profile) as dst:
         dst.write(observed["mask_init"].astype(np.int16), 1)
 
